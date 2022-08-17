@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "fastapi-xml"
+version = "0"
+description = "adds xml support to fastapi"
+authors = ["Leon Rendel"]
+license = "MIT"
+packages = [
+    { include = "fastapi_xml" },
+]
+
+[tool.poetry.dependencies]
+python = ">= 3.7"
+xsdata = ">= 22.1"
+fastapi = ">= 0.70.0"
+pydantic = ">= 1.9.0"
+
+
+[tool.poetry.dev-dependencies]
+uvicorn = "^0.18.2"
+
+[tool.poetry-version-plugin]
+source = "git-tag"
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning"]
+build-backend = "poetry.core.masonry.api"
+
