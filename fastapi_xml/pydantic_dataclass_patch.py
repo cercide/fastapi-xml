@@ -34,7 +34,7 @@ from pydantic.utils import ClassAttribute
 from pydantic.dataclasses import _generate_pydantic_post_init, is_builtin_dataclass, _get_validators, setattr_validate_assignment, DataclassTypeError
 
 if TYPE_CHECKING:
-    from pydantic.dataclasses import Dataclass
+    from pydantic.dataclasses import Dataclass, DataclassT
 
 _CACHE: Dict[Type, Type['Dataclass']] = {}
 
