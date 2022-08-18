@@ -1,17 +1,43 @@
-from typing import Any, Dict, Optional, Type, TYPE_CHECKING
+# this module contains modified code snippets from pydantic. Hence a license copy is given below.
+# Any changes are highlighted.
+#
+# The MIT License (MIT)
+#
+# Copyright (c) 2017, 2018, 2019, 2020, 2021 Samuel Colvin and other contributors
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
+from typing import Any, Dict, Optional, Type, TYPE_CHECKING
+from dataclasses import is_dataclass, asdict
 from pydantic.typing import NoArgAnyCallable
 from pydantic.class_validators import gather_all_validators
 from pydantic.fields import Field, FieldInfo, Required, Undefined
 from pydantic.main import create_model
 from pydantic.typing import resolve_annotations
 from pydantic.utils import ClassAttribute
-from pydantic.dataclasses import _generate_pydantic_post_init, is_builtin_dataclass, _validate_dataclass, _get_validators, setattr_validate_assignment
+from pydantic.dataclasses import _generate_pydantic_post_init, is_builtin_dataclass, _get_validators, setattr_validate_assignment, DataclassTypeError
 
 if TYPE_CHECKING:
     from pydantic.dataclasses import Dataclass
 
 _CACHE: Dict[Type, Type['Dataclass']] = {}
+
 
 def pydantic_process_class_patched(
     _cls: Type[Any],
@@ -23,9 +49,11 @@ def pydantic_process_class_patched(
     frozen: bool,
     config: Optional[Type[Any]],
 ) -> Type['Dataclass']:
+    # BEGIN EDIT
     or_cls = _cls
     if or_cls in _CACHE:
         return _CACHE[or_cls]
+    # END EDIT
 
     import dataclasses
 
@@ -62,9 +90,12 @@ def pydantic_process_class_patched(
                 # attrs for pickle to find this class
                 '__module__': __name__,
                 '__qualname__': uniq_class_name,
+
+                # BEGIN EDIT
                 # addresses https://github.com/pydantic/pydantic/issues/4353
                 # BUGFIX: forward original fields to the new dataclass
-                **_cls.__dataclass_fields__
+                **getattr(_cls, "__dataclass_fields__", {})
+                # BEGIN EDIT
             },
         )
         globals()[uniq_class_name] = _cls
@@ -116,5 +147,42 @@ def pydantic_process_class_patched(
         cls.__setattr__ = setattr_validate_assignment  # type: ignore[assignment]
 
     cls.__pydantic_model__.__try_update_forward_refs__(**{cls.__name__: cls})
+
+    # BEGIN EDIT
+    cls.__origin__ = or_cls
     _CACHE[or_cls] = cls
+    # END EDIT
     return cls
+
+
+def _validate_dataclass(cls: Type['DataclassT'], v: Any) -> 'DataclassT':
+    if isinstance(v, cls):
+        # BEGIN EDIT
+        result = v
+        # END EDIT
+    elif isinstance(v, (list, tuple)):
+        # BEGIN EDIT
+        result = cls(*v)
+        # END EDIT
+    elif isinstance(v, dict):
+        # BEGIN EDIT
+        result = cls(**v)
+        # END EDIT
+    # In nested dataclasses, v can be of type `dataclasses.dataclass`.
+    # But to validate fields `cls` will be in fact a `pydantic.dataclasses.dataclass`,
+    # which inherits directly from the class of `v`.
+    elif is_builtin_dataclass(v) and cls.__bases__[0] is type(v):
+        # BEGIN EDIT
+        # import dataclasses
+        result = cls(**asdict(v))
+        # END EDIT
+    else:
+        raise DataclassTypeError(class_name=cls.__name__)
+
+    # BEGIN EDIT
+    clazz = getattr(cls, "__origin__", None)
+    if is_dataclass(clazz):
+        return clazz(**asdict(result))
+    else:
+        return result
+    # END EDIT

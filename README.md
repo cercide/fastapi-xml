@@ -17,19 +17,18 @@ from fastapi_xml import NonJsonRoute, XmlBody, XmlAppResponse
 from fastapi import FastAPI
 
 @dataclass
-class Hello:
-    message: str = field(metadata={"name": "Message", "type": "Element"})
-
-@dataclass
-class World:
+class HelloWorld:
+    class Meta:
+        name = "echo"
     message: str = field(metadata={"name": "Message", "type": "Element"})
 
 app = FastAPI(default_response_class=XmlAppResponse)
 app.router.route_class = NonJsonRoute
 
-@app.post("/echo", response_model=World)
-def echo(x: Hello = XmlBody()) -> World:
-    return World(message=x.message + " For ever!")
+@app.post("/echo", response_model=HelloWorld)
+def echo(x: HelloWorld = XmlBody()) -> HelloWorld:
+    x.message += " For ever!"
+    return x
 
 if __name__ == "__main__":
     import uvicorn
@@ -41,7 +40,8 @@ if __name__ == "__main__":
   - This package depends on fastapi and xsdata. However, fastapi depends on
     pydantic, which ships a [bug](https://github.com/pydantic/pydantic/issues/4353) that causes several side effects.
     Among other, this bug is fixed within the major branch. Nevertheless, the bug still occurs in the current version
-    (1.9.2). Anyhow, this package supports both versions.
+    (1.9.2). Anyhow, this package supports both versions. Set the environment variable 
+    `FASTAPI_XML_DISABLE_PYDANTIC_PATCH != "false"` to disable that patch.
 
   - :warning: Do not use keyword `required` for a field's metatdata. This will crash the openapi schema generator. Remove 
     typehint `Optional` instead.

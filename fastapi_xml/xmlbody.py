@@ -15,7 +15,7 @@ from xsdata.formats.dataclass.models.elements import XmlType
 from xsdata.utils.constants import return_input
 from xsdata.exceptions import ParserError
 
-from .nonjson import BodyDecoder, BodyDecodeError, NonJsonResponse, OPENAPI_SCHEMA_MODIFIER
+from .nonjson import BodyDecoder, BodyDecodeError, NonJsonResponse
 
 
 DEFAULT_XML_CONTEXT: XmlContext               = XmlContext()
@@ -82,7 +82,8 @@ class LessAccurateXmlParser(XmlParser):
     def start(self, clazz: Optional[Type], queue: List[XmlNode], objects: List[Tuple[Optional[str], Any]], qname: str, attrs: Dict, ns_map: Dict):
         if len(queue) == 0:
             super().start(clazz, queue, objects, qname, attrs, ns_map)
-            if len(queue) > 0 and qname != queue[0].meta.qname:
+            qq = getattr(queue[0], "meta", None)
+            if len(queue) > 0 and qname != getattr(qq, "qname", None):
                 raise ParserError("invalid root element")
         else:
             item  = queue[-1]
@@ -114,8 +115,14 @@ class XmlDecoder(BodyDecoder):
                 Else, it MUST return a mapping for pydantic's constructor
         """
         xml_parser = cls.xml_parser if cls.xml_parser is not None else cls.xml_parser_factory()
+        clazz = field.type_
+        if not is_dataclass(clazz):
+            return None
+        if hasattr(clazz, "__origin__"):
+            # custom attr set by patched dataclass factory
+            clazz = _get_dataclass(clazz.__pydantic_model__)
         try:
-            o = xml_parser.from_bytes(body, clazz=field.type_)
+            o = xml_parser.from_bytes(body, clazz=clazz)
         except ParserError as e:
             http_content_type: str = request.headers.get("content-type", "")
             if http_content_type.endswith("/xml"):
