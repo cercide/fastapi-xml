@@ -6,11 +6,12 @@ from pydantic.fields import Field, FieldInfo, Required, Undefined
 from pydantic.main import create_model
 from pydantic.typing import resolve_annotations
 from pydantic.utils import ClassAttribute
-from pydantic.dataclasses import _generate_pydantic_post_init, is_builtin_dataclass, _validate_dataclass, _get_validators
+from pydantic.dataclasses import _generate_pydantic_post_init, is_builtin_dataclass, _validate_dataclass, _get_validators, setattr_validate_assignment
 
 if TYPE_CHECKING:
     from pydantic.dataclasses import Dataclass
 
+_CACHE: Dict[Type, Type['Dataclass']] = {}
 
 def pydantic_process_class_patched(
     _cls: Type[Any],
@@ -22,6 +23,10 @@ def pydantic_process_class_patched(
     frozen: bool,
     config: Optional[Type[Any]],
 ) -> Type['Dataclass']:
+    or_cls = _cls
+    if or_cls in _CACHE:
+        return _CACHE[or_cls]
+
     import dataclasses
 
     post_init_original = getattr(_cls, '__post_init__', None)
@@ -111,5 +116,5 @@ def pydantic_process_class_patched(
         cls.__setattr__ = setattr_validate_assignment  # type: ignore[assignment]
 
     cls.__pydantic_model__.__try_update_forward_refs__(**{cls.__name__: cls})
-
+    _CACHE[or_cls] = cls
     return cls

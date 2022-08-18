@@ -15,6 +15,9 @@ fastapi = ">= 0.70.0"
 pydantic = ">= 1.9.0"
 
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.1.2"
+
 [tool.poetry.dev-dependencies]
 uvicorn = "^0.18.2"
 

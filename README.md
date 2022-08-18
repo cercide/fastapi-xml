@@ -38,21 +38,10 @@ if __name__ == "__main__":
 ![Hello World Example](.github/rsc/example.gif) 
 
 # Limitations
-This package depends on fastapi and xsdata. However, fastapi depends on
-pydantic, which ships a [bug](https://github.com/pydantic/pydantic/issues/4353) that causes several side effects.
-Among other, this bug is fixed within the major branch. Nevertheless, the bug still occurs in the current version
-(1.9.2). Anyhow, this package supports both versions.
+  - This package depends on fastapi and xsdata. However, fastapi depends on
+    pydantic, which ships a [bug](https://github.com/pydantic/pydantic/issues/4353) that causes several side effects.
+    Among other, this bug is fixed within the major branch. Nevertheless, the bug still occurs in the current version
+    (1.9.2). Anyhow, this package supports both versions.
 
   - :warning: Do not use keyword `required` for a field's metatdata. This will crash the openapi schema generator. Remove 
     typehint `Optional` instead.
-
-  - :warning: You cannot use the same type for the response_model and the body. This will crash the openapi schema
-    generator. For example, this will not work:
-    
-      ```python
-      @app.post("/echo", response_model=Echo)
-      def echo(x: Echo = XmlBody()) -> Echo:
-      ```
-    
-    Recently, this bug was fixed within pydantic's main branch. However, it still exists in 1.9.2.
- 
