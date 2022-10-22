@@ -2,6 +2,7 @@
 name = "fastapi-xml"
 version = "1.0.0b1"
 description = "adds xml support to fastapi"
+readme = "README.md"
 authors = ["Leon Rendel <cercide@tuta.io>"]
 maintainers = ["Leon Rendel <cercide@tuta.io>"]
 repository = "https://github.com/cercide/fastapi-xml"
