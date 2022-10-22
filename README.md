@@ -3,7 +3,6 @@
     <img src="https://img.shields.io/github/license/cercide/fastapi-xml" />
     <img src="https://img.shields.io/github/languages/top/cercide/fastapi-xml.svg" />
     <a href="https://www.codefactor.io/repository/github/cercide/fastapi-xml"><img src="https://www.codefactor.io/repository/github/cercide/fastapi-xml/badge" alt="CodeFactor" /></a>    <img src="https://img.shields.io/pypi/pyversions/fastapi-xml.svg" />
-    <img src="https://github.com/cercide/fastapi-xml/actions/workflows/python-package.yml/badge.svg" />
     <br>
     <code>pip install fastapi-xml</code><br>
 </p>

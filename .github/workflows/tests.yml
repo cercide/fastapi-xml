@@ -17,13 +17,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - {name: PyPy 3.7, python: 'pypy-3.7', os: ubuntu}
           - {name: Python 3.7, python: '3.7', os: ubuntu}
           - {name: Python 3.8, python: '3.8', os: ubuntu}
           - {name: Python 3.9, python: '3.9', os: ubuntu}
           - {name: Python 3.10, python: '3.10', os: ubuntu}
           - {name: Python 3.11-dev, python: '3.11-dev', os: ubuntu}
           - {name: Windows py37, python: '3.7', os: windows}
-          - {name: MacOS py37, python: '3.7', os: macos}
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
@@ -32,8 +32,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        python -m pip install poetry tox tox-poetry
+        python -m pip install --upgrade pip poetry tox tox-poetry codecov
     - name: Tox
       run: |
         python3 -m tox
