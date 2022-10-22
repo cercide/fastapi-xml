@@ -34,6 +34,11 @@ jobs:
     - name: Tox
       run: |
         python3 -m tox -e py
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: true
   pre-commit:
     name: Pre-commit Hooks
     runs-on: ubuntu-latest
@@ -50,8 +55,3 @@ jobs:
         run: |
           python -m pip install --upgrade pip pre-commit
           pre-commit run --all-files
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v1
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        fail_ci_if_error: true
