@@ -1,8 +1,11 @@
 <h1 align="center">FastAPI::XML</h1>
 <p align="center">
+    <img src="https://github.com/cercide/fastapi-xml/actions/workflows/tests.yml/badge.svg" />
+    <a href="https://app.codecov.io/gh/cercide/fastapi-xml"><img src="https://codecov.io/gh/cercide/fastapi-xml/branch/master/graph/badge.svg" /></a>
     <img src="https://img.shields.io/github/license/cercide/fastapi-xml" />
     <img src="https://img.shields.io/github/languages/top/cercide/fastapi-xml.svg" />
-    <a href="https://www.codefactor.io/repository/github/cercide/fastapi-xml"><img src="https://www.codefactor.io/repository/github/cercide/fastapi-xml/badge" alt="CodeFactor" /></a>    <img src="https://img.shields.io/pypi/pyversions/fastapi-xml.svg" />
+    <a href="https://www.codefactor.io/repository/github/cercide/fastapi-xml"><img src="https://www.codefactor.io/repository/github/cercide/fastapi-xml/badge" alt="CodeFactor" /></a>
+    <img src="https://img.shields.io/pypi/pyversions/fastapi-xml.svg" />
     <br>
     <code>pip install fastapi-xml</code><br>
 </p>
