@@ -4,6 +4,7 @@ import json
 import sys
 import traceback
 from abc import abstractmethod
+from contextlib import AsyncExitStack
 from types import MethodType
 from typing import Any
 from typing import Callable
@@ -14,34 +15,36 @@ from typing import Iterable
 from typing import List
 from typing import Mapping
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import Type
 from typing import Union
 
 from fastapi import FastAPI
 from fastapi import params
+from fastapi._compat import _normalize_errors
+from fastapi._compat import ModelField
+from fastapi._compat import Undefined
 from fastapi.datastructures import Default
 from fastapi.datastructures import DefaultPlaceholder
 from fastapi.datastructures import FormData
 from fastapi.dependencies.models import Dependant
 from fastapi.dependencies.utils import solve_dependencies
-from fastapi.encoders import DictIntStrAny
 from fastapi.encoders import jsonable_encoder
-from fastapi.encoders import SetIntStr
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.models import OpenAPI
 from fastapi.openapi.utils import get_openapi
-from fastapi.openapi.utils import OpenAPI
 from fastapi.routing import APIRoute
 from fastapi.routing import run_endpoint_function
 from fastapi.routing import serialize_response
-from pydantic.error_wrappers import ErrorWrapper
-from pydantic.fields import ModelField
-from pydantic.fields import Undefined
 from starlette.background import BackgroundTasks
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.responses import Response
+
+SetIntStr = Set[Union[int, str]]
+DictIntStrAny = Dict[Union[int, str], Any]
 
 OpenApiSchemaModifier = Callable[[FastAPI, OpenAPI, Optional[Mapping[str, Any]]], bool]
 
@@ -99,6 +102,8 @@ class NonJsonRoute(APIRoute):
         # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
         # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
         # THE SOFTWARE.
+
+        # https://github.com/tiangolo/fastapi/blob/c4c70fd7927dbd7d23894f1a69d42457fb7cadbc/fastapi/routing.py#L218
         try:
             body: Any = None
             if body_field:
@@ -123,7 +128,19 @@ class NonJsonRoute(APIRoute):
                         else:
                             body = body_bytes
         except json.JSONDecodeError as e:  # pragma: no cover
-            raise RequestValidationError([ErrorWrapper(e, ("body", e.pos))], body=e.doc)
+            validation_error = RequestValidationError(
+                [
+                    {
+                        "type": "json_invalid",
+                        "loc": ("body", e.pos),
+                        "msg": "JSON decode error",
+                        "input": {},
+                        "ctx": {"error": e.msg},
+                    }
+                ],
+                body=e.doc,
+            )
+            raise validation_error from e
         except Exception as e:  # pragma: no cover
             raise HTTPException(
                 status_code=400, detail="There was an error parsing the body"
@@ -273,20 +290,23 @@ class NonJsonRoute(APIRoute):
         # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
         # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
         # THE SOFTWARE.
-        solved_result = await solve_dependencies(
-            request=request,
-            dependant=dependant,
-            body=body,
-            dependency_overrides_provider=dependency_overrides_provider,
-        )
-        values, errors, background_tasks, sub_response, _ = solved_result
-        if errors:
-            raise RequestValidationError(errors, body=body)
-        else:
-            raw_response = await run_endpoint_function(
-                dependant=dependant, values=values, is_coroutine=is_coroutine
+        # https://github.com/tiangolo/fastapi/blob/eef1b7d51530be64ddd48e02b5ca46f28a0ebfc1/fastapi/routing.py#L268
+        async with AsyncExitStack() as async_exit_stack:
+            solved_result = await solve_dependencies(
+                request=request,
+                dependant=dependant,
+                body=body,
+                dependency_overrides_provider=dependency_overrides_provider,
+                async_exit_stack=async_exit_stack,
             )
-            return raw_response, background_tasks, sub_response
+            values, errors, background_tasks, sub_response, _ = solved_result
+            if errors:
+                raise RequestValidationError(_normalize_errors(errors), body=body)
+            else:
+                raw_response = await run_endpoint_function(
+                    dependant=dependant, values=values, is_coroutine=is_coroutine
+                )
+                return raw_response, background_tasks, sub_response
 
     @staticmethod
     async def _request_handler(
