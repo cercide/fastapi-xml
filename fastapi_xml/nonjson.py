@@ -338,6 +338,7 @@ class NonJsonRoute(APIRoute):
             >>> from fastapi import FastAPI
             >>> from fastapi import Request
             >>> from pydantic.config import BaseConfig
+            >>> from pydantic.fields import FieldInfo
             >>> from xsdata.formats.dataclass.parsers import XmlParser
             >>> from xsdata.formats.dataclass.serializers import XmlSerializer
             >>> current_decoder = BodyDecoder.__decoder__
@@ -382,12 +383,8 @@ class NonJsonRoute(APIRoute):
             ...     "query_string": "",
             ...     "headers": [(b"content-type", TestResponse.media_type.encode())]
             ... }
-            >>> model_field = ModelField(
-            ...     name="x",
-            ...     type_=Dummy,
-            ...     model_config=BaseConfig,
-            ...     class_validators=None
-            ... )
+            >>> field_info = FieldInfo(annotation=Dummy, default=Undefined, alias="x")
+            >>> model_field = ModelField({"name": "x", "field_info": field_info, "mode":"validation"})
             >>> test_dependant = Dependant(
             ...     body_params=[model_field],
             ...     call=dummy_endpoint,
@@ -396,7 +393,7 @@ class NonJsonRoute(APIRoute):
         .. doctest:: Test valid request
 
             >>> test_request = Request(scope=test_scope)
-            >>> test_request._body = b'{"x": "test"}'
+            >>> test_request._body = {"x": "test"}
             >>> test_rq_handler = NonJsonRoute._request_handler(
             ...     dependant=test_dependant,
             ...     request=test_request,
@@ -423,7 +420,8 @@ class NonJsonRoute(APIRoute):
             ... )
             >>> test_result = asyncio.run(test_rq_handler)
             Traceback (most recent call last):
-            starlette.exceptions.HTTPException
+            ...
+            starlette.exceptions.HTTPException: 400: body decode exception test
 
         .. testcleanup::
 
