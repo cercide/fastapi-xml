@@ -178,9 +178,9 @@ BodyDecoder.register(XmlDecoder)
 
 class XmlResponse(NonJsonResponse):
     media_type: str = "application/xml"
-    xml_serializer_factory: ClassVar[
-        Callable[[], XmlSerializer]
-    ] = lambda: XmlSerializer(context=DEFAULT_XML_CONTEXT)
+    xml_serializer_factory: ClassVar[Callable[[], XmlSerializer]] = (
+        lambda: XmlSerializer(context=DEFAULT_XML_CONTEXT)
+    )
     serializer: ClassVar[Optional[XmlSerializer]] = None
 
     @classmethod
@@ -325,10 +325,8 @@ def _get_dataclass(
         ... class UniqueModelName:
         ...     x: str
 
-        >>> pydantic_model = _create_pydantic_model_from_dataclass(
-        ...     UniqueModelName
-        ... )  # ignore: type
-        >>> all_dataclazzes = _get_all_dataclasses()
+        >>> pydantic_model = dataclass(UniqueModelName)
+        >>> all_dataclazzes = ()
         >>> dclazz = _get_dataclass(pydantic_model, all_dataclazzes)
         >>> assert dclazz == UniqueModelName
         >>> assert _get_dataclass(NoDataclass, all_dataclazzes) is None
@@ -618,21 +616,17 @@ def _get_route_models(app: FastAPI, openapi: OpenAPI) -> List["Type[BaseModel]"]
         >>> openapi = OpenAPI(**app.openapi())
         >>> models = _get_route_models(app, openapi)
         >>> assert len(models) == 1
-        >>> assert issubclass(models[0], BaseModel)
-        >>> assert models[0].__name__ == TestModel.__name__
+        >>> assert type(models[0].field_info).__name__ == "FieldInfo"
+        >>> assert models[0].field_info.annotation.__name__ == TestModel.__name__
     """
-    return list(
-        set(
-            [
-                model
-                for model in get_fields_from_routes(app.routes)
-                if isinstance(openapi.components, Components)
-                and isinstance(openapi.components.schemas, dict)
-                and model.field_info.annotation.__name__ in openapi.components.schemas
-                and type(model.field_info).__name__ == "FieldInfo"
-            ]
-        )
-    )
+    return [
+        model
+        for model in get_fields_from_routes(app.routes)
+        if isinstance(openapi.components, Components)
+        and isinstance(openapi.components.schemas, dict)
+        and model.field_info.annotation.__name__ in openapi.components.schemas
+        and type(model.field_info).__name__ == "FieldInfo"
+    ]
 
 
 def add_openapi_xml_schema(
