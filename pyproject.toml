@@ -18,22 +18,20 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">= 3.8,<4.0"
-fastapi = ">= 0.70.0"
-pydantic = ">= 1.10.2,<1.11 "
-xsdata = ">= 22.9"
+fastapi = ">= 0.100.0"
+pydantic = ">= 2.0.0"
+xsdata = ">= 24.2.1"
 
-pre-commit = {version = "^2.20.0"}
-Sphinx = {version = "^5.2.3"}
 
-uvicorn = {version = "^0.18.2"}
-
+[tool.poetry.dev-dependencies]
+packaging = "^23.1"
+pre-commit = {version = ">= 3.5.0"}
+sphinx = {version = ">= 7.1.2"}
+uvicorn = {version = ">= 0.27.1"}
 tox-poetry = {version = "^0.5.0"}
 tox = {version = "^3.26.0"}
 pytest = {version = "^8.0.0"}
 pytest-cov = {version = "^4.0.0"}
-
-[tool.poetry.dev-dependencies]
-packaging = "^23.1"
 
 [tool.poetry-version-plugin]
 source = "git-tag"
