@@ -15,21 +15,20 @@ from typing import TYPE_CHECKING
 
 from fastapi import Body
 from fastapi import FastAPI
+from fastapi._compat import ModelField
+from fastapi._compat import Undefined
 from fastapi.openapi.models import Components
 from fastapi.openapi.models import OpenAPI
 from fastapi.openapi.models import Schema
 from fastapi.openapi.models import XML
-from fastapi.openapi.utils import get_flat_models_from_routes
+from fastapi.openapi.utils import get_fields_from_routes
 from pydantic import BaseModel
+from pydantic import create_model
+from pydantic import TypeAdapter
 from pydantic.config import BaseConfig
-from pydantic.dataclasses import create_model
-from pydantic.dataclasses import gather_all_validators
+from pydantic.dataclasses import dataclass
 from pydantic.fields import Field as PydanticField
 from pydantic.fields import FieldInfo
-from pydantic.fields import ModelField
-from pydantic.fields import Required
-from pydantic.fields import Undefined
-from pydantic.typing import NoArgAnyCallable
 from starlette.requests import Request
 from xsdata.exceptions import ParserError
 from xsdata.formats.dataclass.context import XmlContext
@@ -340,7 +339,7 @@ def _get_dataclass(
         choices = [
             clazz
             for clazz in all_dataclasses
-            if model.__name__ == clazz.__name__ and model.__module__ == clazz.__module__
+            if model.field_info.annotation.__name__ == clazz.__name__
         ]
         choices = list(dict.fromkeys(choices))
         if len(choices) > 0:
@@ -514,76 +513,6 @@ def _filter_xsdata_metadata(metadata: Mapping[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in metadata.items() if k not in _FILTER_XSDATA_METADATA}
 
 
-def _create_pydantic_model_from_dataclass(
-    dc_cls: "Type[Dataclass]",
-    config: "Type[Any]" = BaseConfig,
-    dc_cls_doc: Optional[str] = None,
-) -> "Type[BaseModel]":  # pragma: nocover
-    # Repository: https://github.com/pydantic/pydantic
-    # pydanics's license copy is blow.
-    #
-    # The MIT License (MIT)
-    #
-    # Copyright (c) 2017 - 2022 Samuel Colvin and other contributors
-    #
-    # Permission is hereby granted, free of charge, to any person obtaining a copy
-    # of this software and associated documentation files (the "Software"), to deal
-    # in the Software without restriction, including without limitation the rights
-    # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    # copies of the Software, and to permit persons to whom the Software is
-    # furnished to do so, subject to the following conditions:
-    #
-    # The above copyright notice and this permission notice shall be included in all
-    # copies or substantial portions of the Software.
-    #
-    # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    # SOFTWARE.
-    import dataclasses
-
-    field_definitions: Dict[str, Any] = {}
-    for field in dataclasses.fields(dc_cls):
-        default: Any = Undefined
-        default_factory: Optional[NoArgAnyCallable] = None
-        field_info: FieldInfo
-
-        if field.default is not dataclasses.MISSING:
-            default = field.default
-        elif field.default_factory is not dataclasses.MISSING:
-            default_factory = field.default_factory
-        else:
-            default = Required
-
-        if isinstance(default, FieldInfo):
-            field_info = default
-            dc_cls.__pydantic_has_field_info_default__ = True
-        else:
-            # BEGIN EDIT
-            field_info = PydanticField(
-                default=default,
-                default_factory=default_factory,
-                **_filter_xsdata_metadata(field.metadata),
-            )
-            # END EDIT
-        field_definitions[field.name] = (field.type, field_info)
-
-    validators = gather_all_validators(dc_cls)
-    model: "Type[BaseModel]" = create_model(
-        dc_cls.__name__,
-        __config__=config,
-        __module__=dc_cls.__module__,
-        __validators__=validators,
-        __cls_kwargs__={"__resolve_forward_refs__": False},
-        **field_definitions,
-    )
-    model.__doc__ = dc_cls_doc if dc_cls_doc is not None else dc_cls.__doc__ or ""
-    return model
-
-
 def _add_field_schema(
     dclazz: "Type[object]",
     model_field: "Field[Any]",
@@ -692,14 +621,18 @@ def _get_route_models(app: FastAPI, openapi: OpenAPI) -> List["Type[BaseModel]"]
         >>> assert issubclass(models[0], BaseModel)
         >>> assert models[0].__name__ == TestModel.__name__
     """
-    return [
-        model
-        for model in get_flat_models_from_routes(app.routes)
-        if isinstance(openapi.components, Components)
-        and isinstance(openapi.components.schemas, dict)
-        and model.__name__ in openapi.components.schemas
-        and issubclass(model, BaseModel)
-    ]
+    return list(
+        set(
+            [
+                model
+                for model in get_fields_from_routes(app.routes)
+                if isinstance(openapi.components, Components)
+                and isinstance(openapi.components.schemas, dict)
+                and model.field_info.annotation.__name__ in openapi.components.schemas
+                and type(model.field_info).__name__ == "FieldInfo"
+            ]
+        )
+    )
 
 
 def add_openapi_xml_schema(
@@ -746,13 +679,15 @@ def add_openapi_xml_schema(
     for model in flat_models:
         dclazz = _get_dataclass(model, all_dataclazzes)
         if dclazz is not None:
-            rewrite_model = _create_pydantic_model_from_dataclass(dclazz)
+            rewrite_model = dataclass(dclazz)
             model_schema = Schema(
-                **rewrite_model.schema(
+                **TypeAdapter(rewrite_model).json_schema(
                     by_alias=True, ref_template="#/components/schemas/{model}"
                 )
             )
-            openapi.components.schemas[model.__name__] = model_schema
+            openapi.components.schemas[model.field_info.annotation.__name__] = (
+                model_schema
+            )
             if isinstance(model_schema, Schema):
                 _add_model_schema(dclazz, model_schema, ns_map)
                 model_counter += 1
