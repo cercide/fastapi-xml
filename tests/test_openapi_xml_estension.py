@@ -15,9 +15,7 @@ from fastapi.openapi.models import Schema
 from fastapi.openapi.models import XML
 from pydantic import BaseModel
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from pydantic.dataclasses import DataclassProxy
-from pydantic.schema import default_ref_template
-from pydantic.schema import model_schema
+from pydantic.json_schema import DEFAULT_REF_TEMPLATE
 
 from fastapi_xml import xmlbody
 
@@ -38,10 +36,10 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         self, obj: BaseModel, *exceptions: str, ignore: Optional[Set[str]] = None
     ) -> None:
         ignore = ignore or set()
-        all_fields = set(obj.__fields__.keys())
+        all_fields = set(obj.model_fields.keys())
         should_not_none = set(exceptions)
         should_be_none = all_fields - should_not_none
-        fields = obj.__fields__
+        fields = obj.model_fields
 
         check_valid_fields = (should_not_none | ignore | should_be_none) - all_fields
         self.assertEmpty(check_valid_fields, f"invalid fields: {check_valid_fields}")
@@ -67,12 +65,21 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         return f
 
     @staticmethod
-    def _get_schema(model: Union["Type[Dataclass]", DataclassProxy]) -> Schema:
-        if isinstance(model, DataclassProxy):  # pragma: nocover
-            dclazz = model.__dataclass__
-        else:
-            dclazz = model
-        schema = model_schema(dclazz, by_alias=True, ref_template=default_ref_template)
+    def _get_schema(model: Union["Type[Dataclass]"]) -> Schema:
+        from pydantic import TypeAdapter
+
+        print(type(model))
+        # if isinstance(model, DataclassProxy):  # pragma: nocover
+        #     dclazz = model.__dataclass__
+        # else:
+        #     dclazz = model
+        return Schema(
+                **TypeAdapter(model).json_schema(
+                    by_alias=True, ref_template="#/components/schemas/{model}"
+                )
+            )
+        schema = model_schema(model, by_alias=True, ref_template=DEFAULT_REF_TEMPLATE)
+        # schema = model_schema(dclazz, by_alias=True, ref_template=default_ref_template)
         return Schema(**schema)
 
     def test_named_attribute(self) -> None:
@@ -212,7 +219,7 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
             schema,
             "type",
             "properties",
-            ignore={"title", "required", "description", "required", "properties"},
+            ignore={"title", "required", "description", "required", "properties", "defs"},
         )
         assert schema.properties is not None
         prop = schema.properties["x"]
@@ -240,20 +247,24 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
             schema,
             "type",
             "properties",
-            ignore={"title", "required", "description"},
+            ignore={"title", "required", "description", "defs"},
         )
         assert schema.properties is not None
         prop = schema.properties["x"]
         self.assertEqual(schema.type, "object")
 
-        self.assertAllNoneExcept(prop, "xml", "allOf", ignore={"title", "description"})
+        # allOf is not supported in pydantic v2
+        # https://github.com/pydantic/pydantic/issues/8161
+
+        self.assertAllNoneExcept(prop, "xml", ignore={"title", "description", "ref"})
+        # self.assertAllNoneExcept(prop, "xml", "allOf", ignore={"title", "description"})
         assert isinstance(prop.xml, XML)
-        assert isinstance(prop.allOf, list)
+        # assert isinstance(prop.allOf, list)
         self.assertAllNoneExcept(prop.xml, "name")
 
         self.assertEqual(prop.xml.name, mfield.metadata["name"])
-        self.assertLen(prop.allOf, 1)
-        self.assertAllNoneExcept(prop.allOf[0], "ref")
+        # self.assertLen(prop.allOf, 1)
+        # self.assertAllNoneExcept(prop.allOf[0], "ref")
 
     def test_unnamed_obj_list(self) -> None:
         @dataclass
@@ -272,7 +283,7 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         xmlbody._add_field_schema(dclazz, mfield, schema, {})
 
         self.assertAllNoneExcept(
-            schema, "type", "properties", ignore={"title", "description", "required"}
+            schema, "type", "properties", ignore={"title", "description", "required", "defs"}
         )
         self.assertEqual(schema.type, "object")
         assert isinstance(schema.properties, dict)
@@ -300,7 +311,7 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         xmlbody._add_field_schema(dclazz, mfield, schema, {})
 
         self.assertAllNoneExcept(
-            schema, "type", "properties", ignore={"title", "description", "required"}
+            schema, "type", "properties", ignore={"title", "description", "required", "defs"}
         )
         assert isinstance(schema.properties, dict)
         prop = schema.properties["x"]
@@ -335,7 +346,7 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         xmlbody._add_field_schema(dclazz, mfield, schema, {})
 
         self.assertAllNoneExcept(
-            schema, "type", "properties", ignore={"title", "description", "required"}
+            schema, "type", "properties", ignore={"title", "description", "required", "defs"}
         )
         self.assertEqual(schema.type, "object")
         assert schema.properties is not None
