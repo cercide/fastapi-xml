@@ -16,7 +16,7 @@ from fastapi.openapi.models import XML
 from pydantic import BaseModel
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from pydantic.json_schema import DEFAULT_REF_TEMPLATE
-
+from pydantic import TypeAdapter
 from fastapi_xml import xmlbody
 
 if TYPE_CHECKING:  # pragma: nocover
@@ -66,21 +66,11 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
 
     @staticmethod
     def _get_schema(model: Union["Type[Dataclass]"]) -> Schema:
-        from pydantic import TypeAdapter
-
-        print(type(model))
-        # if isinstance(model, DataclassProxy):  # pragma: nocover
-        #     dclazz = model.__dataclass__
-        # else:
-        #     dclazz = model
         return Schema(
                 **TypeAdapter(model).json_schema(
                     by_alias=True, ref_template="#/components/schemas/{model}"
                 )
             )
-        schema = model_schema(model, by_alias=True, ref_template=DEFAULT_REF_TEMPLATE)
-        # schema = model_schema(dclazz, by_alias=True, ref_template=default_ref_template)
-        return Schema(**schema)
 
     def test_named_attribute(self) -> None:
         @dataclass
