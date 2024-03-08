@@ -1,3 +1,4 @@
+#  type: ignore
 import asyncio
 from dataclasses import dataclass
 from dataclasses import field
@@ -10,9 +11,9 @@ from fastapi.routing import APIRoute
 from xsdata.formats.dataclass.parsers import XmlParser
 from xsdata.formats.dataclass.serializers import XmlSerializer
 
-from fastapi_xml import NonJsonRoute
 from fastapi_xml import XmlAppResponse
 from fastapi_xml import XmlBody
+from fastapi_xml.route import XmlRoute
 
 
 @dataclass
@@ -32,7 +33,7 @@ class FastAPITests(TestCase):
 
         self.app = FastAPI()
         router = self.app.router
-        router.route_class = NonJsonRoute
+        router.route_class = XmlRoute
         router.default_response_class = XmlAppResponse
 
     def test_same_model_io(self) -> None:

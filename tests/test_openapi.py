@@ -1,3 +1,4 @@
+#  type: ignore
 import unittest
 from dataclasses import dataclass
 from dataclasses import Field
@@ -11,18 +12,22 @@ from typing import Type
 from typing import TYPE_CHECKING
 from typing import Union
 
+import pydantic
+from fastapi import APIRouter
+from fastapi import FastAPI
+from fastapi.openapi.models import Components
+from fastapi.openapi.models import OpenAPI
 from fastapi.openapi.models import Schema
 from fastapi.openapi.models import XML
 from pydantic import BaseModel
+from pydantic import TypeAdapter
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from pydantic.dataclasses import DataclassProxy
-from pydantic.schema import default_ref_template
-from pydantic.schema import model_schema
 
-from fastapi_xml import xmlbody
+from fastapi_xml import openapi
+
 
 if TYPE_CHECKING:  # pragma: nocover
-    from pydantic.dataclasses import Dataclass
+    from pydantic.dataclasses import PydanticDataclass
 
 
 class OpenAPIXmlExtensionTests(unittest.TestCase):
@@ -38,10 +43,10 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         self, obj: BaseModel, *exceptions: str, ignore: Optional[Set[str]] = None
     ) -> None:
         ignore = ignore or set()
-        all_fields = set(obj.__fields__.keys())
+        all_fields = set(obj.model_fields.keys())
         should_not_none = set(exceptions)
         should_be_none = all_fields - should_not_none
-        fields = obj.__fields__
+        fields = obj.model_fields
 
         check_valid_fields = (should_not_none | ignore | should_be_none) - all_fields
         self.assertEmpty(check_valid_fields, f"invalid fields: {check_valid_fields}")
@@ -67,12 +72,8 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         return f
 
     @staticmethod
-    def _get_schema(model: Union["Type[Dataclass]", DataclassProxy]) -> Schema:
-        if isinstance(model, DataclassProxy):  # pragma: nocover
-            dclazz = model.__dataclass__
-        else:
-            dclazz = model
-        schema = model_schema(dclazz, by_alias=True, ref_template=default_ref_template)
+    def _get_schema(model: Union["PydanticDataclass"]) -> Schema:
+        schema = TypeAdapter(model).json_schema(by_alias=True)
         return Schema(**schema)
 
     def test_named_attribute(self) -> None:
@@ -85,8 +86,8 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         schema = self._get_schema(model)
         mfield = self._get_dataclass_field(dclazz, "x")
 
-        xmlbody._add_model_schema(dclazz, schema, {})
-        xmlbody._add_field_schema(dclazz, mfield, schema, {})
+        openapi._add_model_schema(dclazz, schema, {})
+        openapi._add_field_schema(dclazz, mfield, schema, {})
 
         self.assertAllNoneExcept(
             schema,
@@ -120,8 +121,8 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         schema = self._get_schema(model)
         mfield = self._get_dataclass_field(dclazz, "x")
 
-        xmlbody._add_model_schema(dclazz, schema, {})
-        xmlbody._add_field_schema(dclazz, mfield, schema, {})
+        openapi._add_model_schema(dclazz, schema, {})
+        openapi._add_field_schema(dclazz, mfield, schema, {})
 
         self.assertAllNoneExcept(
             schema,
@@ -154,7 +155,7 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         model = pydantic_dataclass(dclazz)
         schema = self._get_schema(model)
 
-        xmlbody._add_model_schema(dclazz, schema, {})
+        openapi._add_model_schema(dclazz, schema, {})
 
         self.assertAllNoneExcept(
             schema,
@@ -179,7 +180,7 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         model = pydantic_dataclass(dclazz)
         schema = self._get_schema(model)
 
-        xmlbody._add_model_schema(dclazz, schema, {})
+        openapi._add_model_schema(dclazz, schema, {})
 
         self.assertAllNoneExcept(
             schema,
@@ -206,13 +207,20 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         schema = self._get_schema(model)
         mfield = self._get_dataclass_field(dclazz, "x")
 
-        xmlbody._add_field_schema(dclazz, mfield, schema, {})
+        openapi._add_field_schema(dclazz, mfield, schema, {})
 
         self.assertAllNoneExcept(
             schema,
             "type",
             "properties",
-            ignore={"title", "required", "description", "required", "properties"},
+            ignore={
+                "title",
+                "required",
+                "description",
+                "required",
+                "properties",
+                "defs",
+            },
         )
         assert schema.properties is not None
         prop = schema.properties["x"]
@@ -234,26 +242,22 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         schema = self._get_schema(model)
         mfield = self._get_dataclass_field(dclazz, "x")
 
-        xmlbody._add_field_schema(dclazz, mfield, schema, {})
+        openapi._add_field_schema(dclazz, mfield, schema, {})
 
         self.assertAllNoneExcept(
             schema,
             "type",
             "properties",
-            ignore={"title", "required", "description"},
+            ignore={"title", "required", "description", "defs"},
         )
         assert schema.properties is not None
         prop = schema.properties["x"]
+        print(prop.model_dump_json(indent=4))
         self.assertEqual(schema.type, "object")
-
-        self.assertAllNoneExcept(prop, "xml", "allOf", ignore={"title", "description"})
-        assert isinstance(prop.xml, XML)
-        assert isinstance(prop.allOf, list)
+        self.assertAllNoneExcept(prop, "xml", "ref", ignore={"title", "description"})
+        self.assertIsInstance(prop.xml, XML)
         self.assertAllNoneExcept(prop.xml, "name")
-
         self.assertEqual(prop.xml.name, mfield.metadata["name"])
-        self.assertLen(prop.allOf, 1)
-        self.assertAllNoneExcept(prop.allOf[0], "ref")
 
     def test_unnamed_obj_list(self) -> None:
         @dataclass
@@ -269,10 +273,13 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         schema = self._get_schema(model)
         mfield = self._get_dataclass_field(dclazz, "x")
 
-        xmlbody._add_field_schema(dclazz, mfield, schema, {})
+        openapi._add_field_schema(dclazz, mfield, schema, {})
 
         self.assertAllNoneExcept(
-            schema, "type", "properties", ignore={"title", "description", "required"}
+            schema,
+            "type",
+            "properties",
+            ignore={"title", "description", "required", "defs"},
         )
         self.assertEqual(schema.type, "object")
         assert isinstance(schema.properties, dict)
@@ -297,10 +304,13 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         schema = self._get_schema(model)
         mfield = self._get_dataclass_field(dclazz, "x")
 
-        xmlbody._add_field_schema(dclazz, mfield, schema, {})
+        openapi._add_field_schema(dclazz, mfield, schema, {})
 
         self.assertAllNoneExcept(
-            schema, "type", "properties", ignore={"title", "description", "required"}
+            schema,
+            "type",
+            "properties",
+            ignore={"title", "description", "required", "defs"},
         )
         assert isinstance(schema.properties, dict)
         prop = schema.properties["x"]
@@ -332,10 +342,13 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         schema = self._get_schema(model)
         mfield = self._get_dataclass_field(dclazz, "x")
 
-        xmlbody._add_field_schema(dclazz, mfield, schema, {})
+        openapi._add_field_schema(dclazz, mfield, schema, {})
 
         self.assertAllNoneExcept(
-            schema, "type", "properties", ignore={"title", "description", "required"}
+            schema,
+            "type",
+            "properties",
+            ignore={"title", "description", "required", "defs"},
         )
         self.assertEqual(schema.type, "object")
         assert schema.properties is not None
@@ -368,7 +381,7 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         model = pydantic_dataclass(dclazz)
         schema = self._get_schema(model)
         mfield = self._get_dataclass_field(dclazz, "x")
-        xmlbody._add_field_schema(dclazz, mfield, schema, {})
+        openapi._add_field_schema(dclazz, mfield, schema, {})
         assert isinstance(schema.properties, dict)
         prop = schema.properties["x"]
 
@@ -404,7 +417,7 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         mfield = self._get_dataclass_field(dclazz, "x")
 
         self.assertRaises(
-            TypeError, xmlbody._add_field_schema, dclazz, mfield, schema, {}
+            TypeError, openapi._add_field_schema, dclazz, mfield, schema, {}
         )
 
     def test_items_no_schema(self) -> None:
@@ -428,5 +441,212 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         assert isinstance(prop.items, Schema)
         prop.items = None
         self.assertRaises(
-            TypeError, xmlbody._add_field_schema, dclazz, mfield, schema, {}
+            TypeError, openapi._add_field_schema, dclazz, mfield, schema, {}
         )
+
+    def test_get_element_name_generator(self) -> None:
+        """
+        The test_get_element_name_generator function tests the
+        :func:`fastapi_xml.xmlbody._get_element_name_generator` function.
+        The test checks that if a class has an element name generator, it is returned by the function.
+        If not, then the default element name generator is returned.
+        """
+
+        class Meta1:
+            @staticmethod
+            def element_name_generator(x: str) -> str:
+                """dummy name generator."""
+                return x.upper()
+
+        class Meta2:
+            pass
+
+        g = openapi._get_element_name_generator(Meta1)
+        self.assertEqual(g("test"), "TEST")
+        g = openapi._get_element_name_generator(Meta2)
+        self.assertEqual(g, openapi.DEFAULT_XML_CONTEXT.element_name_generator)
+
+    def test_get_attribute_name_generator(self) -> None:
+        """
+        The test_get_attribute_name_generator function tests the
+        :func:`fastapi_xml.xmlbody._get_attribute_name_generator` function.
+        The test checks that if a class has an attribute name generator, it is returned by the function.
+        If not, then the default attribute name generator is returned.
+        """
+
+        class Meta1:
+            @staticmethod
+            def attribute_name_generator(x: str):
+                """dummy name generator."""
+                return x.upper()
+
+        class Meta2:
+            pass
+
+        g = openapi._get_attribute_name_generator(Meta1)
+        self.assertEqual(g("test"), "TEST")
+        g = openapi._get_attribute_name_generator(Meta2)
+        self.assertEqual(g, openapi.DEFAULT_XML_CONTEXT.attribute_name_generator)
+
+    def test_add_model_schema(self) -> None:
+        """
+        The test_add_model_schema function tests the
+        :func:`fastapi_xml.xmlbody._add_model_schema` function.
+
+        The test checks that the schema is an instance of Schema, and
+        that it has a name, prefix, namespace and attribute.
+        """
+
+        @dataclass
+        class Dummy:
+            class Meta:
+                name = "Foo"
+                namespace = "http://testns"
+
+            x: str
+
+        test_schema = Schema()
+        test_ns_map = {"http://testns": "bla"}
+        openapi._add_model_schema(Dummy, test_schema, test_ns_map)
+        self.assertIsInstance(test_schema.xml, XML)
+        self.assertEqual(test_schema.xml.name, Dummy.Meta.name)
+        self.assertEqual(test_schema.xml.prefix, "bla")
+        self.assertEqual(test_schema.xml.namespace, "http://testns")
+        self.assertIsNone(test_schema.xml.attribute)
+        self.assertIsNone(test_schema.xml.wrapped)
+
+    def test_is_xml_schema_empty(self) -> None:
+        """The test_is_xml_schema_empty function tests the
+        :func:`fastapi_xml.xmlbody._is_xml_schema_empty` function This test
+        check an empty XML schema and each attribute."""
+        self.assertTrue(openapi._is_xml_schema_empty(XML()))
+        self.assertFalse(openapi._is_xml_schema_empty(XML(name="")))
+        self.assertFalse(openapi._is_xml_schema_empty(XML(prefix="")))
+        self.assertFalse(openapi._is_xml_schema_empty(XML(attribute=False)))
+        self.assertFalse(openapi._is_xml_schema_empty(XML(wrapped=False)))
+
+    def test_switch_ref_to_all_of__empty_xml(self) -> None:
+        """
+        The test_switch_ref_to_all_of__empty_xml function tests the
+        :func:`fastapi_xml.xmlbody._switch_ref_to_all_of` function.
+        This test assures that the function does not affect the xml schema object.
+        """
+        test_prop = Schema()
+        test_xml = XML()
+        self.assertIsNone(test_prop.xml)
+        openapi._switch_ref_to_all_of(test_prop, test_xml)
+        self.assertIsNone(test_prop.xml)
+        self.assertIsNone(test_prop.allOf)
+        self.assertIsNone(test_prop.ref)
+
+    def test_switch_ref_to_all_of__non_empty_xml(self) -> None:
+        """
+        The test_switch_ref_to_all_of__non_empty_xml function tests the
+        :func:`fastapi_xml.xmlbody.switch_ref_to_all_of` function.
+        with a non-empty XML object as input. The test asserts that the XML object is not None, and that it has been
+        assigned to the property's xml attribute.
+        """
+        test_prop = Schema()
+        test_xml = XML(name="x")
+        self.assertIsNone(test_prop.xml)
+        openapi._switch_ref_to_all_of(test_prop, test_xml)
+        self.assertIsNotNone(test_prop.xml)
+        self.assertEqual(id(test_prop.xml), id(test_xml))
+        self.assertIsNone(test_prop.allOf)
+        self.assertIsNone(test_prop.ref)
+
+    def test_switch_ref_to_all_of__existing_ref(self) -> None:
+        """
+        The test_switch_ref_to_all_of__existing_ref function tests the
+        :func:`fastapi_xml.xmlbody._switch_ref_to_all_of` function.
+        This test assures that the function places the $ref within the allOf property.
+        """
+        kwargs = {"$ref": "test_ref"}
+        test_prop = Schema(**kwargs)
+        test_xml = XML(name="x")
+        self.assertIsNone(test_prop.xml)
+        self.assertIsNotNone(test_prop.ref)
+        openapi._switch_ref_to_all_of(test_prop, test_xml)
+        self.assertIsNotNone(test_prop.xml)
+        self.assertEqual(id(test_prop.xml), id(test_xml))
+        self.assertIsInstance(test_prop.allOf, list)
+        self.assertEqual(len(test_prop.allOf), 1)
+        self.assertIsInstance(test_prop.allOf[0], Schema)
+        self.assertEqual(test_prop.allOf[0].ref, "test_ref")
+        self.assertIsNone(test_prop.ref)
+
+    def test_add_field_schema(self) -> None:
+        """The test_add_field_schema function tests the
+        :func:`fastapi_xml.xmlbody._add_field_schema function` The test is
+        incomplete, but it does check that a field can be added to an empty
+        schema."""
+        # TODO: complete test
+        test_schema = Schema()
+        openapi._add_field_schema(object, field(), test_schema, {})
+        self.assertEqual(len(test_schema.model_dump(exclude_none=True)), 0)
+
+    def test_get_route_models(self) -> None:
+        """
+        The test_get_route_models function tests the
+        :func:`fastapi_xml.xmlbody._get_route_models` function.
+
+        It validates that the function successfully returns the correct
+        response Model.
+        """
+
+        @dataclass
+        class TestModel:
+            x: str
+
+        router = APIRouter()
+
+        @router.get("/", response_model=TestModel)
+        def dummy_endpoint() -> None:  # pragma: no cover
+            """a dummy endpoint."""
+            pass
+
+        app = FastAPI()
+        app.include_router(router)
+        schema = OpenAPI(**app.openapi())
+        models = openapi._get_route_models(app, schema)
+        self.assertEqual(len(models), 1)
+        # fastapi converts the model into a pydantic dataclass. Hence, it is a different model
+        # having the same attributes
+        self.assertEqual(models[0].__name__, TestModel.__name__)
+
+    def test_add_openapi_xml_schema(self) -> None:
+        """
+        The test_add_openapi_xml_schema function tests the
+        :func:`fastapi_xml.xmlbody.add_openapi_xml_schema` function.
+
+        It does so by creating a FastAPI app and adding an endpoint to
+        it, then testing if the schema has been modified. The test also
+        checks if the function returns None when components or its
+        schemas are missing.
+        """
+
+        @pydantic.dataclasses.dataclass
+        class TestModel:
+            x: str
+
+        router = APIRouter()
+
+        @router.get("/", response_model=TestModel)
+        def dummy_endpoint() -> None:  # pragma: no cover
+            """a dummy endpoint."""
+            pass
+
+        test_app = FastAPI()
+        test_app.include_router(router)
+
+        # test if the schema has been modified
+        test_app.openapi_schema = None
+        test_openapi = OpenAPI(**test_app.openapi())
+        self.assertTrue(openapi.add_openapi_xml_schema(test_app, test_openapi))
+
+        # tests if the function returns None if components or its schemas are missing
+        test_openapi = OpenAPI(**test_app.openapi())
+        test_openapi.components = None
+        self.assertFalse(openapi.add_openapi_xml_schema(test_app, test_openapi))
+        test_openapi.components = Components()
+        self.assertFalse(openapi.add_openapi_xml_schema(test_app, test_openapi))
