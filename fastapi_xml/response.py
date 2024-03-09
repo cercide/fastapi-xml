@@ -4,7 +4,7 @@ from typing import ClassVar
 from typing import Dict
 from typing import Optional
 
-from starlette.responses import Response
+from fastapi.responses import JSONResponse
 from xsdata.formats.dataclass.serializers import XmlSerializer
 
 from .decoder import DEFAULT_XML_CONTEXT
@@ -18,7 +18,7 @@ __all__ = [
 NS_MAP: Dict[Optional[str], str] = {}
 
 
-class XmlResponse(Response):
+class XmlResponse(JSONResponse):
     """fastapi.openapi.utils.get_openapi_path does not support any
     response_schema except for JSONResponse:"""
 
