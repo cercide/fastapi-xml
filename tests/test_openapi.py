@@ -580,7 +580,6 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         :func:`fastapi_xml.xmlbody._add_field_schema function` The test is
         incomplete, but it does check that a field can be added to an empty
         schema."""
-        # TODO: complete test
         test_schema = Schema()
         openapi._add_field_schema(object, field(), test_schema, {})
         self.assertEqual(len(test_schema.model_dump(exclude_none=True)), 0)

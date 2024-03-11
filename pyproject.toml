@@ -22,22 +22,8 @@ fastapi = ">= 0.70.0"
 pydantic = ">= 2.0"
 xsdata = ">= 22.9"
 
-pre-commit = {version = ">=3.6.2"}
-Sphinx = {version = "^5.2.3"}
-
-uvicorn = {version = "^0.27.1"}
-
-tox-poetry = {version = "^0.5.0"}
-pytest = {version = "^8.0.2"}
-pytest-cov = {version = "^4.0.0"}
-
 [tool.poetry-version-plugin]
 source = "git-tag"
-
-[tool.poetry.extras]
-docs = ["Sphinx", "sphinx-rtd-theme", "sphinxcontrib-napoleon"]
-testing = ["pytest", "pytest-cov", "pre-commit", "tox-poetry"]
-local = ["uvicorn"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
