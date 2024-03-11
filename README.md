@@ -3,7 +3,6 @@
 ![tests](https://github.com/cercide/fastapi-xml/actions/workflows/tests.yml/badge.svg)
 [![codecov](https://codecov.io/gh/cercide/fastapi-xml/branch/master/graph/badge.svg)](https://app.codecov.io/gh/cercide/fastapi-xml)
 ![license](https://img.shields.io/github/license/cercide/fastapi-xml)
-![languages](https://img.shields.io/github/languages/top/cercide/fastapi-xml.svg)
 [![CodeFactor](https://www.codefactor.io/repository/github/cercide/fastapi-xml/badge)](https://www.codefactor.io/repository/github/cercide/fastapi-xml)
 ![versions](https://img.shields.io/pypi/pyversions/fastapi-xml.svg)
 
@@ -20,7 +19,7 @@ covers xml serialisation and deserialization. In addition, openapi support works
 from dataclasses import dataclass, field
 from fastapi import FastAPI
 from fastapi_xml import add_openapi_extension
-from fastapi_xml import NonJsonRoute
+from fastapi_xml import XmlRoute
 from fastapi_xml import XmlAppResponse
 from fastapi_xml import XmlBody
 
@@ -29,7 +28,7 @@ class HelloWorld:
     message: str = field(metadata={"example": "Foo","name": "Message", "type": "Element"})
 
 app = FastAPI(title="FastAPI::XML", default_response_class=XmlAppResponse)
-app.router.route_class = NonJsonRoute
+app.router.route_class = XmlRoute
 add_openapi_extension(app)
 
 @app.post("/echo", response_model=HelloWorld, tags=["Example"])
