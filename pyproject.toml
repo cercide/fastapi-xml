@@ -17,7 +17,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">= 3.9, < 4.0"
+python = ">= 3.8, < 4.0"
 fastapi = ">= 0.70.0"
 pydantic = ">= 2.0"
 xsdata = ">= 22.9"
