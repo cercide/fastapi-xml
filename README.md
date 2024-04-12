@@ -25,7 +25,7 @@ from fastapi_xml import XmlBody
 
 @dataclass
 class HelloWorld:
-    message: str = field(metadata={"example": "Foo","name": "Message", "type": "Element"})
+    message: str = field(metadata={"examples": ["Foo"],"name": "Message", "type": "Element"})
 
 app = FastAPI(title="FastAPI::XML", default_response_class=XmlAppResponse)
 app.router.route_class = XmlRoute
