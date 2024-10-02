@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import AsyncExitStack
+from inspect import signature
 from typing import Any
 from typing import Callable
 from typing import Coroutine
@@ -36,6 +37,13 @@ from .decoder import XmlDecoder
 from .response import XmlResponse
 
 DEFAULT_XML_CONTEXT: XmlContext = XmlContext()
+
+# Compatibility with versions of FastAPI before and after 0.113
+EMBED_BODY_FIELDS_ARG = (
+    {"embed_body_fields": False}
+    if "embed_body_fields" in signature(solve_dependencies).parameters
+    else {}
+)
 
 
 class XmlRoute(APIRoute):
@@ -220,9 +228,20 @@ class XmlRoute(APIRoute):
                 body=body,
                 dependency_overrides_provider=dependency_overrides_provider,
                 async_exit_stack=async_exit_stack,
+                **EMBED_BODY_FIELDS_ARG,
             )
 
-        values, errors, background_tasks, sub_response, _ = solved_result
+        # Compatibility with versions of FastAPI before and after 0.113
+        if isinstance(solved_result, tuple):
+            values, errors, background_tasks, sub_response, _ = solved_result
+        else:
+            values, errors, background_tasks, sub_response = (
+                solved_result.values,
+                solved_result.errors,
+                solved_result.background_tasks,
+                solved_result.response,
+            )
+
         if errors:
             validation_error = RequestValidationError(
                 _normalize_errors(errors), body=body
