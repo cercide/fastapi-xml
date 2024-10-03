@@ -18,12 +18,14 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">= 3.9, < 4.0"
-fastapi = ">= 0.70.0"
+fastapi = ">= 0.113.0"
 pydantic = ">= 2.0"
 xsdata = ">= 22.9"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.8.0"
+pytest = "^8.3.3"
+pytest-cov = "^5.0.0"
 
 [tool.poetry-version-plugin]
 source = "git-tag"

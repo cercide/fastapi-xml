@@ -53,6 +53,7 @@ class XmlRoute(APIRoute):
             response_model_exclude_defaults=self.response_model_exclude_defaults,
             response_model_exclude_none=self.response_model_exclude_none,
             dependency_overrides_provider=self.dependency_overrides_provider,
+            embed_body_fields=self._embed_body_fields,
         )
 
     @staticmethod
@@ -188,6 +189,7 @@ class XmlRoute(APIRoute):
         is_coroutine: bool,
         body: Optional[Union[Dict[str, Any], FormData]],
         dependency_overrides_provider: Optional[Any] = None,
+        embed_body_fields: bool = False,
     ) -> Tuple[Any, Optional[BackgroundTasks], Response]:  # pragma: no cover
 
         # Repository: https://github.com/tiangolo/fastapi
@@ -220,9 +222,10 @@ class XmlRoute(APIRoute):
                 body=body,
                 dependency_overrides_provider=dependency_overrides_provider,
                 async_exit_stack=async_exit_stack,
+                embed_body_fields=embed_body_fields,
             )
+        errors = solved_result.errors
 
-        values, errors, background_tasks, sub_response, _ = solved_result
         if errors:
             validation_error = RequestValidationError(
                 _normalize_errors(errors), body=body
@@ -230,16 +233,17 @@ class XmlRoute(APIRoute):
             raise validation_error
         else:
             raw_response = await run_endpoint_function(
-                dependant=dependant, values=values, is_coroutine=is_coroutine
+                dependant=dependant,
+                values=solved_result.values,
+                is_coroutine=is_coroutine,
             )
-            return raw_response, background_tasks, sub_response
+            return raw_response, solved_result.background_tasks, solved_result.response
 
     @staticmethod
     async def _request_handler(
         *,
         request: Request,
         dependant: Dependant,
-        is_body_form: bool,
         body_field: Optional[ModelField],
         is_coroutine: bool,
         actual_response_class: "Type[Response]",
@@ -252,6 +256,7 @@ class XmlRoute(APIRoute):
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
         dependency_overrides_provider: Optional[Any] = None,
+        embed_body_fields: bool = False,
     ) -> Response:
         body: Any = None
         if body_field:
@@ -277,6 +282,7 @@ class XmlRoute(APIRoute):
             is_coroutine=is_coroutine,
             body=body,
             dependency_overrides_provider=dependency_overrides_provider,
+            embed_body_fields=embed_body_fields,
         )
 
         if (
@@ -318,6 +324,7 @@ class XmlRoute(APIRoute):
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
         dependency_overrides_provider: Optional[Any] = None,
+        embed_body_fields: bool = False,
     ) -> Callable[[Request], Coroutine[Any, Any, Response]]:
         """
         If fastapi fails to decode the body, this request handler will use
@@ -329,7 +336,7 @@ class XmlRoute(APIRoute):
 
         (
             is_coroutine,
-            is_body_form,
+            _,
             actual_response_class,
         ) = XmlRoute._original_fastapi_prepare_request_handler(
             dependant=dependant, body_field=body_field, response_class=response_class
@@ -342,7 +349,6 @@ class XmlRoute(APIRoute):
                 request=request,
                 dependant=dependant,
                 is_coroutine=is_coroutine,
-                is_body_form=is_body_form,
                 body_field=body_field,
                 actual_response_class=actual_response_class,
                 status_code=status_code,
@@ -354,6 +360,7 @@ class XmlRoute(APIRoute):
                 response_model_exclude_defaults=response_model_exclude_defaults,
                 response_model_exclude_none=response_model_exclude_none,
                 dependency_overrides_provider=dependency_overrides_provider,
+                embed_body_fields=embed_body_fields,
             )
 
         wrapper.__wrapped_func__ = wrapped_func  # type: ignore[attr-defined]
