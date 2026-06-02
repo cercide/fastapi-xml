@@ -1,4 +1,4 @@
-#  type: ignore
+# type: ignore
 import unittest
 from dataclasses import dataclass
 from dataclasses import Field
@@ -25,7 +25,6 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from fastapi_xml import openapi
 
-
 if TYPE_CHECKING:  # pragma: nocover
     from pydantic.dataclasses import PydanticDataclass
 
@@ -43,10 +42,10 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         self, obj: BaseModel, *exceptions: str, ignore: Optional[Set[str]] = None
     ) -> None:
         ignore = ignore or set()
-        all_fields = set(obj.model_fields.keys())
+        all_fields = set(type(obj).model_fields.keys())
         should_not_none = set(exceptions)
         should_be_none = all_fields - should_not_none
-        fields = obj.model_fields
+        fields = type(obj).model_fields
 
         check_valid_fields = (should_not_none | ignore | should_be_none) - all_fields
         self.assertEmpty(check_valid_fields, f"invalid fields: {check_valid_fields}")
@@ -446,7 +445,8 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
 
     def test_get_element_name_generator(self) -> None:
         """
-        The test_get_element_name_generator function tests the
+        The test_get_element_name_generator function tests the.
+
         :func:`fastapi_xml.xmlbody._get_element_name_generator` function.
         The test checks that if a class has an element name generator, it is returned by the function.
         If not, then the default element name generator is returned.
@@ -455,7 +455,7 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         class Meta1:
             @staticmethod
             def element_name_generator(x: str) -> str:
-                """dummy name generator."""
+                """Dummy name generator."""
                 return x.upper()
 
         class Meta2:
@@ -468,7 +468,8 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
 
     def test_get_attribute_name_generator(self) -> None:
         """
-        The test_get_attribute_name_generator function tests the
+        The test_get_attribute_name_generator function tests the.
+
         :func:`fastapi_xml.xmlbody._get_attribute_name_generator` function.
         The test checks that if a class has an attribute name generator, it is returned by the function.
         If not, then the default attribute name generator is returned.
@@ -477,7 +478,7 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         class Meta1:
             @staticmethod
             def attribute_name_generator(x: str):
-                """dummy name generator."""
+                """Dummy name generator."""
                 return x.upper()
 
         class Meta2:
@@ -490,7 +491,8 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
 
     def test_add_model_schema(self) -> None:
         """
-        The test_add_model_schema function tests the
+        The test_add_model_schema function tests the.
+
         :func:`fastapi_xml.xmlbody._add_model_schema` function.
 
         The test checks that the schema is an instance of Schema, and
@@ -516,9 +518,11 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         self.assertIsNone(test_schema.xml.wrapped)
 
     def test_is_xml_schema_empty(self) -> None:
-        """The test_is_xml_schema_empty function tests the
+        """The test_is_xml_schema_empty function tests the.
+
         :func:`fastapi_xml.xmlbody._is_xml_schema_empty` function This test
-        check an empty XML schema and each attribute."""
+        check an empty XML schema and each attribute.
+        """
         self.assertTrue(openapi._is_xml_schema_empty(XML()))
         self.assertFalse(openapi._is_xml_schema_empty(XML(name="")))
         self.assertFalse(openapi._is_xml_schema_empty(XML(prefix="")))
@@ -527,7 +531,8 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
 
     def test_switch_ref_to_all_of__empty_xml(self) -> None:
         """
-        The test_switch_ref_to_all_of__empty_xml function tests the
+        The test_switch_ref_to_all_of__empty_xml function tests the.
+
         :func:`fastapi_xml.xmlbody._switch_ref_to_all_of` function.
         This test assures that the function does not affect the xml schema object.
         """
@@ -541,7 +546,8 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
 
     def test_switch_ref_to_all_of__non_empty_xml(self) -> None:
         """
-        The test_switch_ref_to_all_of__non_empty_xml function tests the
+        The test_switch_ref_to_all_of__non_empty_xml function tests the.
+
         :func:`fastapi_xml.xmlbody.switch_ref_to_all_of` function.
         with a non-empty XML object as input. The test asserts that the XML object is not None, and that it has been
         assigned to the property's xml attribute.
@@ -557,7 +563,8 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
 
     def test_switch_ref_to_all_of__existing_ref(self) -> None:
         """
-        The test_switch_ref_to_all_of__existing_ref function tests the
+        The test_switch_ref_to_all_of__existing_ref function tests the.
+
         :func:`fastapi_xml.xmlbody._switch_ref_to_all_of` function.
         This test assures that the function places the $ref within the allOf property.
         """
@@ -576,17 +583,20 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
         self.assertIsNone(test_prop.ref)
 
     def test_add_field_schema(self) -> None:
-        """The test_add_field_schema function tests the
+        """The test_add_field_schema function tests the.
+
         :func:`fastapi_xml.xmlbody._add_field_schema function` The test is
         incomplete, but it does check that a field can be added to an empty
-        schema."""
+        schema.
+        """
         test_schema = Schema()
         openapi._add_field_schema(object, field(), test_schema, {})
         self.assertEqual(len(test_schema.model_dump(exclude_none=True)), 0)
 
     def test_get_route_models(self) -> None:
         """
-        The test_get_route_models function tests the
+        The test_get_route_models function tests the.
+
         :func:`fastapi_xml.xmlbody._get_route_models` function.
 
         It validates that the function successfully returns the correct
@@ -601,7 +611,7 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
 
         @router.get("/", response_model=TestModel)
         def dummy_endpoint() -> None:  # pragma: no cover
-            """a dummy endpoint."""
+            """A dummy endpoint."""
             pass
 
         app = FastAPI()
@@ -615,7 +625,8 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
 
     def test_add_openapi_xml_schema(self) -> None:
         """
-        The test_add_openapi_xml_schema function tests the
+        The test_add_openapi_xml_schema function tests the.
+
         :func:`fastapi_xml.xmlbody.add_openapi_xml_schema` function.
 
         It does so by creating a FastAPI app and adding an endpoint to
@@ -632,7 +643,7 @@ class OpenAPIXmlExtensionTests(unittest.TestCase):
 
         @router.get("/", response_model=TestModel)
         def dummy_endpoint() -> None:  # pragma: no cover
-            """a dummy endpoint."""
+            """A dummy endpoint."""
             pass
 
         test_app = FastAPI()

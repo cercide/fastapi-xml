@@ -1,5 +1,6 @@
-#  type: ignore
+# type: ignore
 import asyncio
+from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Optional
@@ -67,8 +68,17 @@ class FastAPITests(TestCase):
         self.assertEqual(rsp_obj.x, "ping")
 
     def _get_request(self, obj: Optional[object] = None) -> Request:
+        astack = AsyncExitStack()
         body: Optional[bytes] = None
-        scope = {"type": "http", "query_string": "", "headers": [(b"x", b"x")]}
+        scope = {
+            "method": "POST",
+            "type": "http",
+            "query_string": "",
+            "headers": [(b"x", b"x")],
+            "fastapi_middleware_astack": astack,
+            "fastapi_inner_astack": astack,
+            "fastapi_function_astack": astack,
+        }
         if obj is not None:
             scope["headers"] = [(b"content-type", b"application/xml")]
             body = self.serializer.render(obj).encode()

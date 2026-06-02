@@ -1,7 +1,7 @@
-import asyncio
 from contextlib import AsyncExitStack
 from typing import Any
 from typing import Callable
+from typing import cast
 from typing import Coroutine
 from typing import Dict
 from typing import Optional
@@ -10,18 +10,21 @@ from typing import Type
 from typing import Union
 
 from fastapi import params
-from fastapi._compat import _normalize_errors
+from fastapi._compat import lenient_issubclass
 from fastapi._compat import ModelField
 from fastapi.datastructures import Default
 from fastapi.datastructures import DefaultPlaceholder
 from fastapi.datastructures import FormData
 from fastapi.dependencies.models import Dependant
 from fastapi.dependencies.utils import solve_dependencies
+from fastapi.exceptions import EndpointContext
 from fastapi.exceptions import FastAPIError
 from fastapi.exceptions import RequestValidationError
+from fastapi.routing import _extract_endpoint_context
 from fastapi.routing import APIRoute
 from fastapi.routing import run_endpoint_function
 from fastapi.routing import serialize_response
+from fastapi.sse import EventSourceResponse
 from fastapi.types import IncEx
 from fastapi.utils import is_body_allowed_for_status_code
 from starlette.background import BackgroundTasks
@@ -45,7 +48,7 @@ class XmlRoute(APIRoute):
             body_field=self.body_field,
             status_code=self.status_code,
             response_class=self.response_class,
-            response_field=self.secure_cloned_response_field,
+            response_field=self.response_field,
             response_model_include=self.response_model_include,
             response_model_exclude=self.response_model_exclude,
             response_model_by_alias=self.response_model_by_alias,
@@ -144,7 +147,8 @@ class XmlRoute(APIRoute):
         dependant: Dependant,
         body_field: Optional[ModelField],
         response_class: Union["Type[Response]", DefaultPlaceholder],
-    ) -> Tuple[bool, bool, "Type[Response]"]:
+        strict_content_type: bool | DefaultPlaceholder = Default(True),
+    ) -> Tuple[bool, bool, "Type[Response]", bool, bool]:
         # Repository: https://github.com/tiangolo/fastapi
         #
         # The MIT License (MIT)
@@ -168,18 +172,29 @@ class XmlRoute(APIRoute):
         # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
         # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
         # THE SOFTWARE.
+
         assert dependant.call is not None, "dependant.call must be a function"
-        is_coroutine = asyncio.iscoroutinefunction(dependant.call)
+        is_coroutine = dependant.is_coroutine_callable
         is_body_form = body_field is not None and isinstance(
             body_field.field_info, params.Form
         )
         if isinstance(response_class, DefaultPlaceholder):
-            actual_response_class: "Type[Response]" = (
-                response_class.value
-            )  # pragma: no cover
+            actual_response_class: type[Response] = response_class.value
         else:
             actual_response_class = response_class
-        return is_coroutine, is_body_form, actual_response_class
+        is_sse_stream = lenient_issubclass(actual_response_class, EventSourceResponse)
+        if isinstance(strict_content_type, DefaultPlaceholder):
+            actual_strict_content_type: bool = strict_content_type.value
+        else:  # pragma: nocover
+            actual_strict_content_type = strict_content_type
+
+        return (
+            is_coroutine,
+            is_body_form,
+            actual_response_class,
+            is_sse_stream,
+            actual_strict_content_type,
+        )
 
     @staticmethod
     async def _mod_fastapi_call_endpoint(
@@ -191,7 +206,6 @@ class XmlRoute(APIRoute):
         dependency_overrides_provider: Optional[Any] = None,
         embed_body_fields: bool = False,
     ) -> Tuple[Any, Optional[BackgroundTasks], Response]:  # pragma: no cover
-
         # Repository: https://github.com/tiangolo/fastapi
         #
         # The MIT License (MIT)
@@ -215,20 +229,44 @@ class XmlRoute(APIRoute):
         # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
         # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
         # THE SOFTWARE.
-        async with AsyncExitStack() as async_exit_stack:
-            solved_result = await solve_dependencies(
-                request=request,
-                dependant=dependant,
-                body=body,
-                dependency_overrides_provider=dependency_overrides_provider,
-                async_exit_stack=async_exit_stack,
-                embed_body_fields=embed_body_fields,
-            )
+
+        file_stack = request.scope.get("fastapi_middleware_astack")
+        assert isinstance(file_stack, AsyncExitStack), (
+            "fastapi_middleware_astack not found in request scope"
+        )
+
+        # Extract endpoint context for error messages
+        endpoint_ctx = (
+            _extract_endpoint_context(dependant.call)
+            if dependant.call
+            else EndpointContext()
+        )
+
+        if dependant.path:
+            # For mounted sub-apps, include the mount path prefix
+            mount_path = request.scope.get("root_path", "").rstrip("/")
+            endpoint_ctx["path"] = f"{request.method} {mount_path}{dependant.path}"
+
+        # Solve dependencies and run path operation function, auto-closing dependencies
+        errors: list[Any] = []
+        async_exit_stack = request.scope.get("fastapi_inner_astack")
+        assert isinstance(async_exit_stack, AsyncExitStack), (
+            "fastapi_inner_astack not found in request scope"
+        )
+        solved_result = await solve_dependencies(
+            request=request,
+            dependant=dependant,
+            body=cast(dict[str, Any] | FormData | bytes | None, body),
+            dependency_overrides_provider=dependency_overrides_provider,
+            async_exit_stack=async_exit_stack,
+            embed_body_fields=embed_body_fields,
+        )
         errors = solved_result.errors
+        assert dependant.call  # For types
 
         if errors:
             validation_error = RequestValidationError(
-                _normalize_errors(errors), body=body
+                errors, body=body, endpoint_ctx=endpoint_ctx
             )
             raise validation_error
         else:
@@ -257,6 +295,9 @@ class XmlRoute(APIRoute):
         response_model_exclude_none: bool = False,
         dependency_overrides_provider: Optional[Any] = None,
         embed_body_fields: bool = False,
+        strict_content_type: bool | DefaultPlaceholder = Default(True),
+        stream_item_field: ModelField | None = None,
+        is_json_stream: bool = False,
     ) -> Response:
         body: Any = None
         if body_field:
@@ -311,35 +352,41 @@ class XmlRoute(APIRoute):
     @staticmethod
     def get_request_handler(
         dependant: Dependant,
-        body_field: Optional[ModelField] = None,
-        status_code: Optional[int] = None,
-        response_class: Union["Type[Response]", DefaultPlaceholder] = Default(
-            JSONResponse
-        ),
-        response_field: Optional[ModelField] = None,
-        response_model_include: Optional[IncEx] = None,
-        response_model_exclude: Optional[IncEx] = None,
+        body_field: ModelField | None = None,
+        status_code: int | None = None,
+        response_class: type[Response] | DefaultPlaceholder = Default(JSONResponse),
+        response_field: ModelField | None = None,
+        response_model_include: IncEx | None = None,
+        response_model_exclude: IncEx | None = None,
         response_model_by_alias: bool = True,
         response_model_exclude_unset: bool = False,
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
-        dependency_overrides_provider: Optional[Any] = None,
+        dependency_overrides_provider: Any | None = None,
         embed_body_fields: bool = False,
+        strict_content_type: bool | DefaultPlaceholder = Default(True),
+        stream_item_field: ModelField | None = None,
+        is_json_stream: bool = False,
     ) -> Callable[[Request], Coroutine[Any, Any, Response]]:
         """
-        If fastapi fails to decode the body, this request handler will use
+        If fastapi fails to decode the body, this request handler will use.
+
         :class:`XmlDecoder` to decode the body.
 
-        Furthermore, any API endpoint may use :class:`XmlResponse`
-        to serialize any data into a non-json format.
+        Furthermore, any API endpoint may use :class:`XmlResponse` to
+        serialize any data into a non-json format.
         """
-
         (
             is_coroutine,
             _,
             actual_response_class,
+            is_sse_stream,
+            actual_strict_content_type,
         ) = XmlRoute._original_fastapi_prepare_request_handler(
-            dependant=dependant, body_field=body_field, response_class=response_class
+            dependant=dependant,
+            body_field=body_field,
+            response_class=response_class,
+            strict_content_type=strict_content_type,
         )
 
         wrapped_func = XmlRoute._request_handler
@@ -361,6 +408,8 @@ class XmlRoute(APIRoute):
                 response_model_exclude_none=response_model_exclude_none,
                 dependency_overrides_provider=dependency_overrides_provider,
                 embed_body_fields=embed_body_fields,
+                stream_item_field=stream_item_field,
+                is_json_stream=is_json_stream,
             )
 
         wrapper.__wrapped_func__ = wrapped_func  # type: ignore[attr-defined]

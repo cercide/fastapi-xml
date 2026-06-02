@@ -34,7 +34,8 @@ if TYPE_CHECKING:  # pragma: nocover
 
 def _get_element_name_generator(meta: "Type[object]") -> Callable[[str], str]:
     """
-    The _get_element_name_generator function is a helper function that returns
+    The _get_element_name_generator function is a helper function that returns.
+
     the element_name_generator attribute of the given config class, or if it
     does not exist, returns DEFAULT_XML_CONTEXT.element_name_generator. The
     element name generator is used to generate XML tag names for elements in an
@@ -50,7 +51,8 @@ def _get_element_name_generator(meta: "Type[object]") -> Callable[[str], str]:
 
 def _get_attribute_name_generator(meta: "Type[object]") -> Callable[[str], str]:
     """
-    The _get_attribute_name_generator function is a helper function that
+    The _get_attribute_name_generator function is a helper function that.
+
     returns the attribute_name_generator attribute of the given meta class, or
     if it does not exist, returns DEFAULT_XML_CONTEXT.attribute_name_generator.
     This allows for customizing how XML attributes are converted to Python
@@ -68,7 +70,8 @@ def _add_model_schema(
     dclazz: Type[object], model_schema: Schema, ns_map: Mapping[str, str]
 ) -> None:
     """
-    The _add_model_schema function adds an XML schema to the given model
+    The _add_model_schema function adds an XML schema to the given model.
+
     schema.
 
     :param dclazz: A dataclass for which an OpenAPI schema is created.
@@ -90,7 +93,8 @@ def _add_model_schema(
 
 def _is_xml_schema_empty(xml_schema: XML) -> bool:
     """
-    The _is_xml_schema_empty function is used to determine if an XML schema has
+    The _is_xml_schema_empty function is used to determine if an XML schema has.
+
     been defined.
 
     :param xml_schema: The XML schema to check
@@ -107,7 +111,8 @@ def _is_xml_schema_empty(xml_schema: XML) -> bool:
 
 def _switch_ref_to_all_of(prop: Schema, xml_schema: XML) -> None:
     """
-    The _switch_ref_to_all_of function is used to convert a property that has
+    The _switch_ref_to_all_of function is used to convert a property that has.
+
     both an XML Schema and a $ref to one that uses allOf instead.
 
     This is necessary because the OpenAPI Specification does not allow
@@ -130,7 +135,8 @@ def _add_field_schema(
     ns_map: Mapping[str, str],
 ) -> None:
     """
-    The _add_field_schema function is responsible for adding the XML schema
+    The _add_field_schema function is responsible for adding the XML schema.
+
     information to a dataclass model schema. This function adjust the schema
     based on the given data field.
 
@@ -201,21 +207,23 @@ def _get_route_models(
     app: FastAPI, openapi: OpenAPI
 ) -> List[Type["PydanticDataclass"]]:
     """
-    The _get_route_models function is used to get the Pydantic models that are
+    The _get_route_models function is used to get the Pydantic models that are.
+
     defined in the OpenAPI schema.
 
     :param app: Access the routes of the api
     :param openapi: Get the schemas from the openapi object
-    :return: A list of pydantic dataclasses that are used as route parameters or response bodies
+    :return: A list of pydantic dataclasses that are used as route
+        parameters or response bodies
     """
     if isinstance(openapi.components, Components) and isinstance(
         openapi.components.schemas, dict
     ):
         return [
-            pydantic_dataclass(field.type_)
+            pydantic_dataclass(field.field_info.annotation)
             for field in get_fields_from_routes(app.routes)
-            if is_dataclass(field.type_)
-            and field.type_.__name__ in openapi.components.schemas
+            if is_dataclass(field.field_info.annotation)
+            and field.field_info.annotation.__name__ in openapi.components.schemas
         ]
     else:  # pragma: nocover
         return []
@@ -225,7 +233,8 @@ def add_openapi_xml_schema(
     app: FastAPI, openapi: OpenAPI, ns_map: Optional[Mapping[str, str]] = None
 ) -> bool:
     """
-    The add_openapi_xml_schema function adds XML schema information to the
+    The add_openapi_xml_schema function adds XML schema information to the.
+
     OpenAPI document.
 
     :param app: Get the models from the routes
@@ -298,7 +307,10 @@ def _get_unmodified_openapi(app: FastAPI) -> OpenAPI:
     return OpenAPI(**openapi_schema)
 
 
-def _extend_openapi(app: FastAPI, **extension_kwargs: Any) -> Dict[str, Any]:
+def _extend_openapi(
+    app: FastAPI,
+    **extension_kwargs: Any,
+) -> Dict[str, Any]:
     """
     .. testsetup::
 
@@ -336,7 +348,10 @@ def _extend_openapi(app: FastAPI, **extension_kwargs: Any) -> Dict[str, Any]:
     return app.openapi_schema
 
 
-def add_openapi_extension(app: FastAPI, **extension_kwargs: Any) -> None:
+def add_openapi_extension(
+    app: FastAPI,
+    **extension_kwargs: Any,
+) -> None:
     """
     .. testsetup::
 

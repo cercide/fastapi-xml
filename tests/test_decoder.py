@@ -37,12 +37,12 @@ class TestXmlDecoder(unittest.TestCase):
 
         @router.get("/model")
         def endpoint_model(x: Model = XmlBody()) -> None:  # pragma: no cover
-            """dummy endpoint."""
+            """Dummy endpoint."""
             pass
 
         @router.get("/dclazz")
         def endpoint_dclazz(x: NotADataClazz = XmlBody()) -> None:  # pragma: no cover
-            """dummy endpoint."""
+            """Dummy endpoint."""
             pass
 
         self.app = FastAPI()
@@ -51,7 +51,8 @@ class TestXmlDecoder(unittest.TestCase):
 
     def test_get_parser(self) -> None:
         """
-        The test_get_parser function tests the get_parser function in the
+        The test_get_parser function tests the get_parser function in the.
+
         XmlDecoder class.
 
         It asserts that an instance of XmlParser is returned.
@@ -61,7 +62,8 @@ class TestXmlDecoder(unittest.TestCase):
 
     def test_decode__decode_body(self) -> None:
         """
-        The function is responsible for evaluating the
+        The function is responsible for evaluating the.
+
         :meth:`fastapi_xml.XmlDecoder.decode` function. This function
         establishes a test environment, represented as a dictionary containing
         details related to an HTTP request.
@@ -82,9 +84,9 @@ class TestXmlDecoder(unittest.TestCase):
         test_body = b"<Model><x>test</x></Model>"
         test_field = route_model.body_field
         test_result = XmlDecoder.decode(test_request, test_field, test_body)
-        self.assertIsInstance(test_result, dict)
-        self.assertTrue("x" in test_result)
-        self.assertEqual(test_result["x"], "test")
+        self.assertIsInstance(test_result, test_field.field_info.annotation)
+        self.assertHasAttr(test_result, "x")
+        self.assertEqual(getattr(test_result, "x"), "test")
 
     def test_decode__return_non_if_model_is_not_a_dataclass(self) -> None:
         """
@@ -101,7 +103,8 @@ class TestXmlDecoder(unittest.TestCase):
 
     def test_decode__BodyDecodeError(self) -> None:
         """
-        This function tests the :meth:`XmlDecoder.decode` function to ensure
+        This function tests the :meth:`XmlDecoder.decode` function to ensure.
+
         that it raises a BodyDecodeError if the content type is xml and an
         error occurs during decoding.
 
