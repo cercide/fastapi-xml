@@ -85,7 +85,7 @@ class TestXmlDecoder(unittest.TestCase):
         test_field = route_model.body_field
         test_result = XmlDecoder.decode(test_request, test_field, test_body)
         self.assertIsInstance(test_result, test_field.field_info.annotation)
-        self.assertHasAttr(test_result, "x")
+        self.assertTrue(hasattr(test_result, "x"))
         self.assertEqual(getattr(test_result, "x"), "test")
 
     def test_decode__return_non_if_model_is_not_a_dataclass(self) -> None:
