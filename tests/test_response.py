@@ -35,12 +35,12 @@ class TestXmlResponse(unittest.TestCase):
 
         @router.get("/model")
         def endpoint_model(x: Model = XmlBody()) -> None:  # pragma: no cover
-            """a dummy endpoint."""
+            """A dummy endpoint."""
             x.x = x.x
 
         @router.get("/dclazz")
         def endpoint_dclazz(x: NotADataclass = XmlBody()) -> None:  # pragma: no cover
-            """a dummy endpoint."""
+            """A dummy endpoint."""
             x.x = x.x
 
         self.app = FastAPI()
@@ -48,10 +48,12 @@ class TestXmlResponse(unittest.TestCase):
         self.api_routes = [r for r in self.app.routes if isinstance(r, APIRoute)]
 
     def test_get_serializer(self) -> None:
-        """The test_get_serializer function tests the
+        """The test_get_serializer function tests the.
+
         :func:`fastapi_xml.xmlbody.XmlResponse.get_serializer` function The
         test checks if a serializer is returned and if it is an instance of
-        XmlSerializer."""
+        XmlSerializer.
+        """
         # a previous serializer might be available. Hence, backup and reset it
         current_serializer = XmlResponse.serializer
         XmlResponse.serializer = None
@@ -65,7 +67,8 @@ class TestXmlResponse(unittest.TestCase):
 
     def test_render(self) -> None:
         """
-        The test_render function tests the
+        The test_render function tests the.
+
         :meth:`fastapi_xml.xmlbody.XmlResponse.render` method.
 
         It creates a dummy dataclass, instantiates it with a value for

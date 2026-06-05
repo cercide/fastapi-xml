@@ -1,4 +1,5 @@
 """This packaged adds xml support to :mod:`fastapi`."""
+
 from .openapi import add_openapi_extension
 from .response import XmlAppResponse
 from .response import XmlTextResponse
