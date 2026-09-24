@@ -6,6 +6,8 @@ from dataclasses import field
 from typing import Optional
 from unittest import TestCase
 
+from fastapi import APIRouter
+from fastapi import Depends
 from fastapi import FastAPI
 from fastapi import Request
 from fastapi.routing import APIRoute
@@ -116,3 +118,63 @@ class FastAPITests(TestCase):
         assert isinstance(rsp_obj, ResponseModel)
         self.assertEqual(type(rsp_obj), ResponseModel)
         self.assertEqual(rsp_obj.x, "pong")
+
+    def test_included_router(self) -> None:
+        """Include-level prefix, dependencies and response class apply."""
+        calls = []
+
+        def dependency() -> None:
+            calls.append(True)
+
+        router = APIRouter(route_class=XmlRoute)
+
+        @router.post("/echo")
+        def endpoint(x: RequestModel = XmlBody()) -> ResponseModel:
+            return ResponseModel(x=x.x)
+
+        app = FastAPI()
+        app.include_router(
+            router,
+            prefix="/api",
+            dependencies=[Depends(dependency)],
+            default_response_class=XmlAppResponse,
+        )
+        body = self.serializer.render(RequestModel(x="ping")).encode()
+        status, headers, content = asyncio.run(self._asgi_post(app, "/api/echo", body))
+        self.assertEqual(status, 200)
+        self.assertEqual(calls, [True])
+        self.assertEqual(
+            headers.get(b"content-type"), XmlAppResponse.media_type.encode()
+        )
+        rsp_obj = self.parser.from_bytes(content, ResponseModel)
+        self.assertEqual(rsp_obj.x, "ping")
+
+    @staticmethod
+    async def _asgi_post(app: FastAPI, path: str, body: bytes):
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": path,
+            "raw_path": path.encode(),
+            "root_path": "",
+            "query_string": b"",
+            "headers": [(b"content-type", b"application/xml")],
+        }
+        messages = [{"type": "http.request", "body": body, "more_body": False}]
+        sent = []
+
+        async def receive():
+            return messages.pop(0) if messages else {"type": "http.disconnect"}
+
+        async def send(message):
+            sent.append(message)
+
+        await app(scope, receive, send)
+        start = next(m for m in sent if m["type"] == "http.response.start")
+        content = b"".join(
+            m.get("body", b"") for m in sent if m["type"] == "http.response.body"
+        )
+        return start["status"], dict(start["headers"]), content
