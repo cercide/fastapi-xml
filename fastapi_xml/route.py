@@ -41,6 +41,15 @@ from .response import XmlResponse
 DEFAULT_XML_CONTEXT: XmlContext = XmlContext()
 
 
+def _is_coroutine(dependant: Dependant) -> bool:
+    # fastapi < 0.140 exposes a Dependant property; newer versions a helper
+    if hasattr(dependant, "is_coroutine_callable"):  # pragma: nocover
+        return bool(dependant.is_coroutine_callable)
+    from fastapi.dependencies.models import _is_coroutine_callable
+
+    return _is_coroutine_callable(dependant.call)
+
+
 class XmlRoute(APIRoute):
     def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
         return self.get_request_handler(
@@ -174,7 +183,7 @@ class XmlRoute(APIRoute):
         # THE SOFTWARE.
 
         assert dependant.call is not None, "dependant.call must be a function"
-        is_coroutine = dependant.is_coroutine_callable
+        is_coroutine = _is_coroutine(dependant)
         is_body_form = body_field is not None and isinstance(
             body_field.field_info, params.Form
         )
