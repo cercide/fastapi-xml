@@ -45,7 +45,7 @@ class TestXmlResponse(unittest.TestCase):
 
         self.app = FastAPI()
         self.app.include_router(router)
-        self.api_routes = [r for r in self.app.routes if isinstance(r, APIRoute)]
+        self.api_routes = [r for r in router.routes if isinstance(r, APIRoute)]
 
     def test_get_serializer(self) -> None:
         """The test_get_serializer function tests the.
