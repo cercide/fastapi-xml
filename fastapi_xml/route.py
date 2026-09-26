@@ -20,6 +20,7 @@ from fastapi.dependencies.utils import solve_dependencies
 from fastapi.exceptions import EndpointContext
 from fastapi.exceptions import FastAPIError
 from fastapi.exceptions import RequestValidationError
+from fastapi.routing import _effective_route_context_var
 from fastapi.routing import _extract_endpoint_context
 from fastapi.routing import APIRoute
 from fastapi.routing import run_endpoint_function
@@ -41,22 +42,41 @@ from .response import XmlResponse
 DEFAULT_XML_CONTEXT: XmlContext = XmlContext()
 
 
+def _is_coroutine(dependant: Dependant) -> bool:
+    # fastapi < 0.140 exposes a Dependant property; newer versions a helper
+    if hasattr(dependant, "is_coroutine_callable"):  # pragma: nocover
+        return bool(dependant.is_coroutine_callable)
+    from fastapi.dependencies.models import _is_coroutine_callable
+
+    return _is_coroutine_callable(dependant.call)
+
+
 class XmlRoute(APIRoute):
     def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
+        # Routes of included routers are served with an "effective" context
+        # (prefix, merged dependencies, response class, ...), see fastapi's
+        # APIRoute.get_route_handler.
+        route: Any = self
+        effective_context = _effective_route_context_var.get()
+        if effective_context is not None and effective_context.original_route is self:
+            route = effective_context
         return self.get_request_handler(
-            dependant=self.dependant,
-            body_field=self.body_field,
-            status_code=self.status_code,
-            response_class=self.response_class,
-            response_field=self.response_field,
-            response_model_include=self.response_model_include,
-            response_model_exclude=self.response_model_exclude,
-            response_model_by_alias=self.response_model_by_alias,
-            response_model_exclude_unset=self.response_model_exclude_unset,
-            response_model_exclude_defaults=self.response_model_exclude_defaults,
-            response_model_exclude_none=self.response_model_exclude_none,
-            dependency_overrides_provider=self.dependency_overrides_provider,
-            embed_body_fields=self._embed_body_fields,
+            dependant=route.dependant,
+            body_field=route.body_field,
+            status_code=route.status_code,
+            response_class=route.response_class,
+            response_field=route.response_field,
+            response_model_include=route.response_model_include,
+            response_model_exclude=route.response_model_exclude,
+            response_model_by_alias=route.response_model_by_alias,
+            response_model_exclude_unset=route.response_model_exclude_unset,
+            response_model_exclude_defaults=route.response_model_exclude_defaults,
+            response_model_exclude_none=route.response_model_exclude_none,
+            dependency_overrides_provider=route.dependency_overrides_provider,
+            embed_body_fields=route._embed_body_fields,
+            strict_content_type=route.strict_content_type,
+            stream_item_field=route.stream_item_field,
+            is_json_stream=route.is_json_stream,
         )
 
     @staticmethod
@@ -174,7 +194,7 @@ class XmlRoute(APIRoute):
         # THE SOFTWARE.
 
         assert dependant.call is not None, "dependant.call must be a function"
-        is_coroutine = dependant.is_coroutine_callable
+        is_coroutine = _is_coroutine(dependant)
         is_body_form = body_field is not None and isinstance(
             body_field.field_info, params.Form
         )
